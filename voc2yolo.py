@@ -47,7 +47,7 @@ def collect_xml_files(xml_dir: Path) -> List[Path]:
     return sorted(xmls)
 
 
-def parse_voc_xml(path: Path, ignore_difficult: bool) -> Tuple[str, int, int, List[Dict]]:
+def parse_voc_xml(path: Path, ignore_difficult: bool, img_dir: Path = None, image_exts: List[str] = None) -> Tuple[str, int, int, List[Dict]]:
     try:
         tree = ET.parse(path)
         root = tree.getroot()
@@ -64,8 +64,34 @@ def parse_voc_xml(path: Path, ignore_difficult: bool) -> Tuple[str, int, int, Li
         raise RuntimeError(f"XML 缺少 size 节点: {path}")
     w = int(_text(size, "width", "0"))
     h = int(_text(size, "height", "0"))
+    
+    # 自动修复: 当尺寸为0时，尝试从实际图片文件读取
     if w <= 0 or h <= 0:
-        raise RuntimeError(f"无效的图像尺寸 w={w} h={h} in {path}")
+        if img_dir and img_dir.exists() and image_exts:
+            stem = Path(filename).stem if filename else path.stem
+            img_path = None
+            # 尝试查找对应的图片文件
+            for ext in image_exts:
+                cand = img_dir / f"{stem}{ext}"
+                if cand.is_file():
+                    img_path = cand
+                    break
+            
+            if img_path:
+                try:
+                    import cv2
+                    img = cv2.imread(str(img_path))
+                    if img is not None:
+                        h, w = img.shape[:2]
+                        log_info(f"自动修复: 从图片读取尺寸 {path.name} -> {w}x{h}")
+                    else:
+                        raise RuntimeError(f"无法读取图片: {img_path}")
+                except Exception as e:
+                    raise RuntimeError(f"无效的图像尺寸 w={w} h={h} in {path}, 且无法从图片读取: {e}")
+            else:
+                raise RuntimeError(f"无效的图像尺寸 w={w} h={h} in {path}, 且未找到对应图片")
+        else:
+            raise RuntimeError(f"无效的图像尺寸 w={w} h={h} in {path}")
 
     objects: List[Dict] = []
     for obj in root.findall("object"):
@@ -121,7 +147,7 @@ def ensure_output_dirs(base: Path, structure: str, overwrite: bool) -> Tuple[Pat
         return base, base  # images 与 labels 在同一路径
 
 
-def load_or_collect_classes(args: argparse.Namespace, xml_files: List[Path]) -> List[str]:
+def load_or_collect_classes(args: argparse.Namespace, xml_files: List[Path], img_dir: Path = None, image_exts: List[str] = None) -> List[str]:
     classes: List[str] = []
     if args.classes_file:
         classes = read_class_names(args.classes_file)
@@ -132,7 +158,7 @@ def load_or_collect_classes(args: argparse.Namespace, xml_files: List[Path]) -> 
         seen_set: Set[str] = set()
         for xp in xml_files:
             try:
-                _, _, _, objs = parse_voc_xml(xp, args.ignore_difficult)
+                _, _, _, objs = parse_voc_xml(xp, args.ignore_difficult, img_dir, image_exts)
             except Exception:
                 continue
             for o in objs:
@@ -173,7 +199,10 @@ def main():
         sys.exit(1)
     log_info(f"发现 XML 标注文件: {len(xml_files)}")
 
-    classes = load_or_collect_classes(args, xml_files)
+    image_exts = [e.lower() for e in (args.image_exts if args.image_exts else [x[1:] for x in get_image_extensions()])]
+    image_exts = [f".{e}" if not e.startswith('.') else e for e in image_exts]
+
+    classes = load_or_collect_classes(args, xml_files, img_dir, image_exts)
     if not classes:
         log_error("未能获取类别集合 (classes)；请显式提供 --classes-file")
         sys.exit(1)
@@ -184,9 +213,6 @@ def main():
     img_out_dir, lbl_out_dir = ensure_output_dirs(out_root, args.structure, args.overwrite)
     log_info(f"输出结构: {args.structure}; images -> {img_out_dir}; labels -> {lbl_out_dir}")
 
-    image_exts = [e.lower() for e in (args.image_exts if args.image_exts else [x[1:] for x in get_image_extensions()])]
-    image_exts = [f".{e}" if not e.startswith('.') else e for e in image_exts]
-
     copied = 0
     converted = 0
     missing_image = 0
@@ -194,7 +220,7 @@ def main():
 
     for idx, xp in enumerate(xml_files, 1):
         try:
-            filename, w, h, objects = parse_voc_xml(xp, args.ignore_difficult)
+            filename, w, h, objects = parse_voc_xml(xp, args.ignore_difficult, img_dir, image_exts)
         except Exception as e:
             log_warn(f"跳过无法解析的 XML: {xp.name}: {e}")
             continue

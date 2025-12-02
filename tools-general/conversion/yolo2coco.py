@@ -11,8 +11,7 @@ import sys
 import cv2
 import json
 import argparse
-import tempfile
-import subprocess
+# keep imports minimal: no external COCO split dependency
 from pathlib import Path
 
 # Add project root to sys.path
@@ -172,27 +171,10 @@ def save_coco(coco_dict, output_path):
     log_info(f'保存: {output_path}')
 
 
-def maybe_split(temp_dir, output_dir, args):
-    """若用户指定 --split, 调用 coco_dataset_split.py 进行再划分。"""
-    ratios = [args.train_ratio, args.val_ratio, args.test_ratio]
-    if abs(sum(ratios) - 1.0) > 1e-6:
-        log_warn('划分比例之和需为1.0，已忽略 split 操作。')
-        return
-    script = Path(__file__).parent / 'coco_dataset_split.py'
-    if not script.exists():
-        log_warn('未找到 coco_dataset_split.py，跳过划分。')
-        return
-    cmd = [
-        'python', str(script),
-        '-i', str(temp_dir),
-        '-o', str(output_dir),
-        '--train_ratio', str(args.train_ratio),
-        '--val_ratio', str(args.val_ratio),
-        '--test_ratio', str(args.test_ratio),
-        '--seed', str(args.seed)
-    ]
-    log_info('调用外部划分脚本: ' + ' '.join(cmd))
-    subprocess.run(cmd, check=False)
+# Note: split/COCO-dataset-specific post-processing has been removed.
+# This script only converts YOLO -> COCO JSON. For dataset splitting, use
+# the YOLO-native tools (e.g. `yolo_dataset_split.py`) and then convert each
+# split separately with this script.
 
 
 def parse_args():
@@ -206,11 +188,7 @@ def parse_args():
                                                            '  B) standard/mixed 未提供 -o 且未使用 --split: 默认 <dataset_dir>/annotations.json\n'
                                                            '  C) standard/mixed 使用 --split: 必须提供 -o 作为最终划分输出目录\n'
                                                            '  若显式提供 -o: 按前述逻辑写入 (目录或单一 .json 文件)。')
-    parser.add_argument('--split', action='store_true', help='当输入为标准或混合结构时, 先转换再按比例调用 coco_dataset_split 划分')
-    parser.add_argument('--train_ratio', type=float, default=0.8, help='(可选) 划分训练集比例')
-    parser.add_argument('--val_ratio', type=float, default=0.1, help='(可选) 划分验证集比例')
-    parser.add_argument('--test_ratio', type=float, default=0.1, help='(可选) 划分测试集比例')
-    parser.add_argument('--seed', type=int, default=42, help='随机种子(传递给划分脚本)')
+    # Removed --split and related arguments to avoid COCO-specific post-processing
     return parser.parse_args()
 
 
@@ -260,37 +238,9 @@ def main():
     split_name, img_dir, lbl_dir = paths[0]
     coco_dict = convert_split(split_name, img_dir, lbl_dir, classes)
 
-    if args.split and structure in ['standard', 'mixed']:
-        if output is None:
-            log_error('standard/mixed 且使用 --split 时必须指定 -o 输出目录。')
-            return
-        output_path = Path(output)
-        # 先输出到临时目录 temp/images + annotations.json, 再调用外部划分
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            # 保存 annotations.json
-            save_coco(coco_dict, str(tmp_path / 'annotations.json'))
-            # 拷贝图片 (COCO 划分脚本需要 images/ 目录)
-            images_out = tmp_path / 'images'
-            images_out.mkdir(exist_ok=True)
-            for f in iter_images(img_dir):
-                src = Path(img_dir) / f
-                dst = images_out / f
-                try:
-                    if src != dst:
-                        # 复制图片
-                        with open(src, 'rb') as fr, open(dst, 'wb') as fw:
-                            fw.write(fr.read())
-                except Exception as e:
-                    log_warn(f'复制图片失败: {src} -> {dst}: {e}')
-            # 同时保存 classes.txt (若存在)
-            if classes:
-                with open(tmp_path / 'classes.txt', 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(classes))
-            # 调用划分脚本
-            maybe_split(tmp_path, output_path, args)
-        log_info('转换并划分完成。')
-        return
+    # For standard/mixed structures, simply write a single COCO JSON file.
+    # If users want train/val/test splits, run `yolo_dataset_split.py` first
+    # to create a YOLO split structure, then run this script on each split.
 
     # 不划分: 输出单一 JSON
     if output is None:

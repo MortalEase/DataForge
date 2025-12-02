@@ -7,9 +7,15 @@
 特性: 支持 2/3 集合比例、随机种子、类别文件复制与统计报告
 """
 import os
+import sys
 import shutil
 import random
 import argparse
+from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 _LOG_FILE = tee_stdout_stderr('logs')
 from collections import defaultdict

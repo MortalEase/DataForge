@@ -6,10 +6,16 @@
 支持: format1/format2/standard/mixed 自动结构检测
 """
 import os
+import sys
 import shutil
 import argparse
+from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 _LOG_FILE = tee_stdout_stderr('logs')
 from utils.yolo_utils import (

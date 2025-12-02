@@ -13,6 +13,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Tuple, Set
 
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 from utils.yolo_utils import (
     read_class_names,

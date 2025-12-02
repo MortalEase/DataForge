@@ -9,6 +9,11 @@ import os
 import sys
 import cv2
 import argparse
+from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 from utils.yolo_utils import discover_class_names, read_class_names
 _LOG_FILE = tee_stdout_stderr('logs')

@@ -7,12 +7,17 @@
 默认: 未显式指定输出目录时按结构给出合理默认 JSON 存放路径
 """
 import os
+import sys
 import cv2
 import json
 import argparse
 import tempfile
 import subprocess
 from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from tqdm import tqdm
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 from utils.yolo_utils import discover_class_names

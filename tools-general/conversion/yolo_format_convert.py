@@ -9,8 +9,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import shutil
 from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 from utils.yolo_utils import (

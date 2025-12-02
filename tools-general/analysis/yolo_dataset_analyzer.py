@@ -6,11 +6,16 @@
 输出: 基本统计表 + 类别分布表 + 每分割缺失/冗余报告
 """
 import os
+import sys
 from pathlib import Path
 import argparse
 import yaml
 import random
 from prettytable import PrettyTable
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
 from utils.yolo_utils import get_image_extensions, detect_yolo_structure, discover_class_names
 from utils.logging_utils import tee_stdout_stderr, log_info, log_warn, log_error
 _LOG_FILE = tee_stdout_stderr('logs')

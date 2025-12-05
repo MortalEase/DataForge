@@ -44,7 +44,7 @@ class PlainFormatter(logging.Formatter):
     """Plain formatter for file output."""
     pass
 
-def tee_stdout_stderr(log_dir: str | Path = 'logs', script_basename: Optional[str] = None) -> str:
+def tee_stdout_stderr(log_dir: str | Path = 'logs', script_basename: Optional[str] = None, time_format: str = '[%Y-%m-%d %H:%M:%S]') -> str:
     """
     Configures the root logger to write to a file and the console.
     Returns the path to the log file.
@@ -68,16 +68,17 @@ def tee_stdout_stderr(log_dir: str | Path = 'logs', script_basename: Optional[st
         
     # File Handler (Plain text)
     file_handler = logging.FileHandler(log_path, encoding='utf-8')
-    file_handler.setFormatter(PlainFormatter("%(asctime)s - %(levelname)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S'))
+    # Format: [LEVEL] time : message
+    file_handler.setFormatter(PlainFormatter("[%(levelname)s] %(asctime)s %(message)s", datefmt=time_format))
     logger.addHandler(file_handler)
     
     # Console Handler (Colored)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(ColoredFormatter("%(asctime)s - %(levelname)s - %(message)s", datefmt='%Y-%m-%d %H:%M:%S'))
+    console_handler.setFormatter(ColoredFormatter("[%(levelname)s] %(asctime)s %(message)s", datefmt=time_format))
     logger.addHandler(console_handler)
     
-    # Log initial info
-    logging.info(f"===== {script_basename} start {datetime.now().isoformat(timespec='seconds')} =====")
+    # Log initial info (use concise time format)
+    logging.info(f"===== {script_basename} start {datetime.now().strftime(time_format)} =====")
     logging.info(f"cmd: {' '.join(sys.argv)}")
     
     return str(log_path)
